@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { useParams, useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { UserPlus, UserCheck, BookOpen, User } from "lucide-react";
+import { UserPlus, UserCheck, BookOpen, User, Heart, Trash2, X } from "lucide-react";
 import { Poem } from "@/components/SwipeCard";
 
 interface Profile {
@@ -25,6 +25,7 @@ export default function AuthorProfilePage() {
     const [isFollowing, setIsFollowing] = useState(false);
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const [followerCount, setFollowerCount] = useState(0);
+    const [selectedPoem, setSelectedPoem] = useState<Poem | null>(null);
 
     useEffect(() => {
         async function loadData() {
@@ -57,7 +58,8 @@ export default function AuthorProfilePage() {
                     title: p.title,
                     content: p.content,
                     author_id: p.author_id,
-                    author_name: p.users?.username
+                    author_name: p.users?.username,
+                    like_count: p.like_count
                 })));
             }
 
@@ -89,6 +91,11 @@ export default function AuthorProfilePage() {
             router.push("/login");
             return;
         }
+        if (currentUserId === id) {
+            alert("You cannot follow yourself.");
+            return;
+        }
+
         if (isFollowing) {
             await supabase.from("follows").delete().eq("follower_id", currentUserId).eq("author_id", id);
             setIsFollowing(false);
@@ -97,6 +104,44 @@ export default function AuthorProfilePage() {
             await supabase.from("follows").insert({ follower_id: currentUserId, author_id: id });
             setIsFollowing(true);
             setFollowerCount(prev => prev + 1);
+        }
+    };
+
+    const handleLike = async (poemId: string) => {
+        if (!currentUserId) {
+            alert("Please log in to like poems.");
+            return;
+        }
+
+        // Optimistically update UI first to feel responsive
+        setPoems(prev => prev.map(p => p.id === poemId ? { ...p, like_count: (p.like_count || 0) + 1 } : p));
+        if (selectedPoem && selectedPoem.id === poemId) {
+            setSelectedPoem({ ...selectedPoem, like_count: (selectedPoem.like_count || 0) + 1 });
+        }
+
+        const { error } = await supabase.from("likes").insert({ user_id: currentUserId, poem_id: poemId });
+        if (error) {
+            // Revert on failure
+            setPoems(prev => prev.map(p => p.id === poemId ? { ...p, like_count: Math.max((p.like_count || 1) - 1, 0) } : p));
+            if (selectedPoem && selectedPoem.id === poemId) {
+                setSelectedPoem({ ...selectedPoem, like_count: Math.max((selectedPoem.like_count || 1) - 1, 0) });
+            }
+            if (error.code === '23505') alert("You already liked this poem!");
+            else console.error(error);
+        }
+    };
+
+    const handleDelete = async (poemId: string) => {
+        if (!currentUserId || currentUserId !== id) return;
+        if (!confirm("Are you sure you want to delete this poem?")) return;
+
+        const { error } = await supabase.from("poems").delete().eq("id", poemId);
+        if (!error) {
+            setPoems(prev => prev.filter(p => p.id !== poemId));
+            setSelectedPoem(null);
+        } else {
+            console.error(error);
+            alert("Failed to delete poem");
         }
     };
 
@@ -154,8 +199,8 @@ export default function AuthorProfilePage() {
                             <button
                                 onClick={handleFollow}
                                 className={`mt-4 md:mt-0 flex items-center gap-2 px-6 py-2.5 rounded-full font-medium shadow-sm transition-all active:scale-95 ${isFollowing
-                                        ? "bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)]"
-                                        : "bg-primary text-white hover:bg-orange-600 shadow-md"
+                                    ? "bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)]"
+                                    : "bg-primary text-white hover:bg-orange-600 shadow-md"
                                     }`}
                             >
                                 {isFollowing ? <UserCheck size={18} /> : <UserPlus size={18} />}
@@ -174,17 +219,21 @@ export default function AuthorProfilePage() {
                 {poems.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {poems.map(poem => (
-                            <div key={poem.id} className="bg-[var(--card)] p-6 rounded-2xl shadow-sm border border-[var(--border)] hover:shadow-md transition-shadow">
-                                <h3 className="text-lg font-serif font-bold text-[var(--foreground)] mb-3 line-clamp-1">
+                            <div
+                                key={poem.id}
+                                onClick={() => setSelectedPoem(poem)}
+                                className="bg-[var(--card)] p-6 rounded-2xl shadow-sm border border-[var(--border)] hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group"
+                            >
+                                <h3 className="text-lg font-serif font-bold text-[var(--foreground)] mb-3 line-clamp-1 group-hover:text-primary transition-colors">
                                     {poem.title}
                                 </h3>
                                 <p className="text-[var(--muted-foreground)] text-sm whitespace-pre-wrap line-clamp-4 font-serif">
                                     {poem.content}
                                 </p>
                                 <div className="mt-4 pt-3 border-t border-[var(--border)]/50 flex justify-between items-center">
-                                    <span className="text-xs text-[var(--muted-foreground)]">
-                                        {/* Date formatting could be added here */}
-                                        Moonlit Classic
+                                    <span className="text-xs text-[var(--muted-foreground)]">Moonlit Collection</span>
+                                    <span className="flex items-center gap-1 text-xs text-red-500/80 font-medium">
+                                        <Heart size={12} fill="currentColor" /> {poem.like_count || 0}
                                     </span>
                                 </div>
                             </div>
@@ -196,6 +245,51 @@ export default function AuthorProfilePage() {
                     </div>
                 )}
             </div>
+
+            {/* Full Poem Modal */}
+            {selectedPoem && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+                    <div className="bg-[var(--card)] w-full max-w-lg max-h-[85vh] rounded-3xl shadow-2xl border border-[var(--border)] flex flex-col relative animate-in fade-in zoom-in-95 duration-200">
+                        <button
+                            onClick={() => setSelectedPoem(null)}
+                            className="absolute top-4 right-4 p-2 bg-[var(--background)] hover:bg-[var(--border)] rounded-full text-[var(--foreground)] transition-colors"
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <div className="p-8 overflow-y-auto flex-1">
+                            <h2 className="text-3xl font-serif font-bold text-[var(--foreground)] text-center mb-6">{selectedPoem.title}</h2>
+                            <div className="w-24 h-px bg-primary/30 mx-auto mb-6"></div>
+                            <p className="text-lg whitespace-pre-wrap text-[var(--foreground)] leading-relaxed font-serif text-center">
+                                {selectedPoem.content}
+                            </p>
+                            <div className="mt-12 text-center text-[var(--muted-foreground)] text-sm font-medium">
+                                ~ {selectedPoem.author_name || profile.username}
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t border-[var(--border)] bg-[var(--background)]/50 rounded-b-3xl flex items-center justify-between">
+                            <button
+                                onClick={() => handleLike(selectedPoem.id)}
+                                className="flex items-center gap-2 px-6 py-2.5 rounded-full font-medium shadow-sm transition-all active:scale-95 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 hover:scale-105"
+                            >
+                                <Heart size={18} fill="currentColor" className="animate-pulse" />
+                                {selectedPoem.like_count || 0} Likes
+                            </button>
+
+                            {isOwnProfile && (
+                                <button
+                                    onClick={() => handleDelete(selectedPoem.id)}
+                                    className="flex items-center p-2.5 text-[var(--muted-foreground)] hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                                    title="Delete Poem"
+                                >
+                                    <Trash2 size={20} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -2,6 +2,7 @@
 
 import { motion, useMotionValue, useTransform, useAnimation } from "framer-motion";
 import { useEffect } from "react";
+import Link from "next/link";
 
 import { Heart, X, UserPlus } from "lucide-react";
 
@@ -90,7 +91,9 @@ export default function SwipeCard({ poem, onLike, onSkip, onToggleFollow, isFoll
 
             <div className="mt-4 pt-4 border-t border-[var(--border)]/50 w-full flex flex-col items-center gap-3 pb-2 z-20">
                 <div className="flex items-center justify-center gap-4 text-sm font-medium text-[var(--muted-foreground)] w-full">
-                    <span>~ {poem.author_name || "Unknown Poet"}</span>
+                    <Link href={`/profile/${poem.author_id}`} className="hover:text-primary hover:underline transition-colors">
+                        ~ {poem.author_name || "Unknown Poet"}
+                    </Link>
                     <span className="flex items-center gap-1.5 text-red-500/80 bg-red-500/10 px-2 py-0.5 rounded-full">
                         <Heart size={14} fill="currentColor" /> {poem.like_count || 0}
                     </span>
@@ -99,8 +102,8 @@ export default function SwipeCard({ poem, onLike, onSkip, onToggleFollow, isFoll
                     <button
                         onClick={(e) => { e.stopPropagation(); onToggleFollow(poem); }}
                         className={`flex items-center gap-2 px-5 py-2 rounded-full font-medium shadow-sm transition-all active:scale-95 ${isFollowing
-                                ? 'bg-[var(--border)] text-[var(--foreground)] hover:brightness-95'
-                                : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
+                            ? 'bg-[var(--border)] text-[var(--foreground)] hover:brightness-95'
+                            : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
                             }`}
                     >
                         <UserPlus size={16} />
