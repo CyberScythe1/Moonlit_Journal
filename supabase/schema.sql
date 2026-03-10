@@ -31,7 +31,8 @@ CREATE TABLE public.follows (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   follower_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
   author_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
-  UNIQUE(follower_id, author_id)
+  UNIQUE(follower_id, author_id),
+  CONSTRAINT no_self_follow CHECK (follower_id != author_id)
 );
 
 -- Create reports table
@@ -69,6 +70,29 @@ CREATE POLICY "Authenticated users can follow." ON public.follows FOR INSERT WIT
 CREATE POLICY "Users can unfollow." ON public.follows FOR DELETE USING (auth.uid() = follower_id);
 
 CREATE POLICY "Authenticated users can report poems." ON public.reports FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- ------------------------------------------------------------------------------------------------
+-- TRIGGER TO MAINTAIN LIKE COUNTS
+-- Automatically increments/decrements the `like_count` on `public.poems` when `public.likes` changes
+-- ------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.update_like_count()
+RETURNS trigger AS $$
+BEGIN
+  IF (TG_OP = 'INSERT') THEN
+    UPDATE public.poems SET like_count = like_count + 1 WHERE id = NEW.poem_id;
+    RETURN NEW;
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE public.poems SET like_count = like_count - 1 WHERE id = OLD.poem_id;
+    RETURN OLD;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_like_change ON public.likes;
+CREATE TRIGGER on_like_change
+  AFTER INSERT OR DELETE ON public.likes
+  FOR EACH ROW EXECUTE PROCEDURE public.update_like_count();
 
 -- ------------------------------------------------------------------------------------------------
 -- TRIGGER FOR NEW USER SIGNUPS

@@ -11,10 +11,18 @@ export default function DiscoverPage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
 
+  const [followedAuthorIds, setFollowedAuthorIds] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     async function loadUser() {
       const { data } = await supabase.auth.getUser();
-      if (data?.user) setUserId(data.user.id);
+      if (data?.user) {
+        setUserId(data.user.id);
+        const { data: follows } = await supabase.from('follows').select('author_id').eq('follower_id', data.user.id);
+        if (follows) {
+          setFollowedAuthorIds(new Set(follows.map(f => f.author_id)));
+        }
+      }
     }
     loadUser();
     fetchPoems();
@@ -35,7 +43,8 @@ export default function DiscoverPage() {
         title: p.title,
         content: p.content,
         author_id: p.author_id,
-        author_name: p.users?.username
+        author_name: p.users?.username,
+        like_count: p.like_count
       }));
       setPoems(formatted);
     } else {
@@ -56,15 +65,47 @@ export default function DiscoverPage() {
     setPoems(prev => prev.filter(p => p.id !== poem.id));
   };
 
-  const handleSubscribe = async () => {
-    if (!userId || poems.length === 0) {
+  const handleToggleFollow = async (poem: Poem) => {
+    if (!userId) {
       alert("Please log in to follow authors.");
       return;
     }
-    const authorId = poems[0].author_id;
-    const { error } = await supabase.from("follows").insert({ follower_id: userId, author_id: authorId });
-    if (error) alert("Could not follow: " + error.message);
-    else alert("Following author!");
+    const authorId = poem.author_id;
+    if (authorId === userId) {
+      alert("You cannot follow yourself.");
+      return;
+    }
+
+    const isFollowing = followedAuthorIds.has(authorId);
+
+    if (isFollowing) {
+      // Unfollow
+      const { error } = await supabase.from("follows")
+        .delete()
+        .eq('follower_id', userId)
+        .eq('author_id', authorId);
+
+      if (error) alert("Could not unfollow: " + error.message);
+      else {
+        setFollowedAuthorIds(prev => {
+          const next = new Set(prev);
+          next.delete(authorId);
+          return next;
+        });
+      }
+    } else {
+      // Follow
+      const { error } = await supabase.from("follows").insert({ follower_id: userId, author_id: authorId });
+
+      if (error) alert("Could not follow: " + error.message);
+      else {
+        setFollowedAuthorIds(prev => {
+          const next = new Set(prev);
+          next.add(authorId);
+          return next;
+        });
+      }
+    }
   };
 
   const activePoem = poems[0];
@@ -95,7 +136,9 @@ export default function DiscoverPage() {
                     zIndex={poems.length - index}
                     onLike={handleLike}
                     onSkip={handleSkip}
-                    onSubscribe={() => handleSubscribe()}
+                    onToggleFollow={handleToggleFollow}
+                    isFollowing={followedAuthorIds.has(poem.author_id)}
+                    isOwnPoem={poem.author_id === userId}
                   />
                 );
               })}

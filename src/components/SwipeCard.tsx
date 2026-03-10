@@ -11,18 +11,21 @@ export interface Poem {
     content: string;
     author_id: string;
     author_name?: string;
+    like_count?: number;
 }
 
 interface SwipeCardProps {
     poem: Poem;
     onLike: (poem: Poem) => void;
     onSkip: (poem: Poem) => void;
-    onSubscribe: (poem: Poem) => void;
+    onToggleFollow: (poem: Poem) => void;
+    isFollowing: boolean;
+    isOwnPoem: boolean;
     active: boolean;
     zIndex: number;
 }
 
-export default function SwipeCard({ poem, onLike, onSkip, onSubscribe, active, zIndex }: SwipeCardProps) {
+export default function SwipeCard({ poem, onLike, onSkip, onToggleFollow, isFollowing, isOwnPoem, active, zIndex }: SwipeCardProps) {
     const x = useMotionValue(0);
     const rotate = useTransform(x, [-200, 200], [-10, 10]);
 
@@ -86,16 +89,24 @@ export default function SwipeCard({ poem, onLike, onSkip, onSubscribe, active, z
             </div>
 
             <div className="mt-4 pt-4 border-t border-[var(--border)]/50 w-full flex flex-col items-center gap-3 pb-2 z-20">
-                <p className="text-sm font-medium text-[var(--muted-foreground)]">
-                    ~ {poem.author_name || "Unknown Poet"}
-                </p>
-                <button
-                    onClick={(e) => { e.stopPropagation(); onSubscribe(poem); }}
-                    className="flex items-center gap-2 px-5 py-2 rounded-full font-medium shadow-sm transition-all active:scale-95 bg-primary/10 text-primary hover:bg-primary hover:text-white"
-                >
-                    <UserPlus size={16} />
-                    Follow Author
-                </button>
+                <div className="flex items-center justify-center gap-4 text-sm font-medium text-[var(--muted-foreground)] w-full">
+                    <span>~ {poem.author_name || "Unknown Poet"}</span>
+                    <span className="flex items-center gap-1.5 text-red-500/80 bg-red-500/10 px-2 py-0.5 rounded-full">
+                        <Heart size={14} fill="currentColor" /> {poem.like_count || 0}
+                    </span>
+                </div>
+                {!isOwnPoem && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onToggleFollow(poem); }}
+                        className={`flex items-center gap-2 px-5 py-2 rounded-full font-medium shadow-sm transition-all active:scale-95 ${isFollowing
+                                ? 'bg-[var(--border)] text-[var(--foreground)] hover:brightness-95'
+                                : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
+                            }`}
+                    >
+                        <UserPlus size={16} />
+                        {isFollowing ? 'Unfollow' : 'Follow Author'}
+                    </button>
+                )}
             </div>
         </motion.div>
     );
