@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import Navbar from "@/components/Navbar";
 import SwipeCard, { Poem } from "@/components/SwipeCard";
+import GuestTutorialOverlay from "@/components/GuestTutorialOverlay";
 import { AnimatePresence } from "framer-motion";
 
 export default function DiscoverPage() {
   const [poems, setPoems] = useState<Poem[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const [followedAuthorIds, setFollowedAuthorIds] = useState<Set<string>>(new Set());
 
@@ -21,6 +23,12 @@ export default function DiscoverPage() {
         const { data: follows } = await supabase.from('follows').select('author_id').eq('follower_id', data.user.id);
         if (follows) {
           setFollowedAuthorIds(new Set(follows.map(f => f.author_id)));
+        }
+      } else {
+        // Show tutorial only to guests who haven't seen it
+        const hasSeenTutorial = localStorage.getItem("moonlit_seen_tutorial");
+        if (!hasSeenTutorial) {
+          setShowTutorial(true);
         }
       }
     }
@@ -108,6 +116,11 @@ export default function DiscoverPage() {
     }
   };
 
+  const handleDismissTutorial = () => {
+    localStorage.setItem("moonlit_seen_tutorial", "true");
+    setShowTutorial(false);
+  };
+
   const activePoem = poems[0];
 
   return (
@@ -157,6 +170,8 @@ export default function DiscoverPage() {
           </div>
         )}
       </div>
+
+      {showTutorial && <GuestTutorialOverlay onDismiss={handleDismissTutorial} />}
     </div>
   );
 }
