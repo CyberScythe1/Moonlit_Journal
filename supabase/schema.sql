@@ -69,3 +69,32 @@ CREATE POLICY "Authenticated users can follow." ON public.follows FOR INSERT WIT
 CREATE POLICY "Users can unfollow." ON public.follows FOR DELETE USING (auth.uid() = follower_id);
 
 CREATE POLICY "Authenticated users can report poems." ON public.reports FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- ------------------------------------------------------------------------------------------------
+-- TRIGGER FOR NEW USER SIGNUPS
+-- Automatically creates a user profile in `public.users` when a new user signs up in `auth.users`
+-- ------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.users (id, username)
+  VALUES (new.id, split_part(new.email, '@', 1) || floor(random() * 1000)::text);
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Bind the trigger
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+-- ------------------------------------------------------------------------------------------------
+-- BACKFILL EXISTING USERS
+-- Run this once to populate `public.users` for anyone who signed up before the trigger existed
+-- ------------------------------------------------------------------------------------------------
+INSERT INTO public.users (id, username)
+SELECT id, split_part(email, '@', 1) || floor(random() * 1000)::text
+FROM auth.users
+WHERE id NOT IN (SELECT id FROM public.users)
+ON CONFLICT (id) DO NOTHING;
