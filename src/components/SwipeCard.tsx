@@ -57,11 +57,12 @@ export default function SwipeCard({ poem, onLike, onSkip, onToggleFollow, isFoll
 
     return (
         <motion.div
-            className="absolute top-0 w-full h-[65vh] max-w-md mx-auto aspect-[3/4] bg-[var(--card)] rounded-3xl shadow-xl border border-[var(--border)] overflow-hidden flex flex-col items-center justify-center p-8 origin-bottom"
+            className="absolute top-0 w-full h-[65vh] max-w-md mx-auto aspect-[3/4] bg-[var(--card)] rounded-3xl shadow-xl border border-[var(--border)] overflow-hidden flex flex-col items-center justify-center p-8 origin-bottom overscroll-none"
             style={{ x, rotate, zIndex, touchAction: "none" }}
             drag={active ? "x" : false}
             dragConstraints={{ left: 0, right: 0 }}
             dragElastic={0.8}
+            dragDirectionLock
             onDragEnd={handleDragEnd}
             animate={controls}
             whileTap={active ? { cursor: "grabbing" } : { cursor: "grab" }}
@@ -82,7 +83,7 @@ export default function SwipeCard({ poem, onLike, onSkip, onToggleFollow, isFoll
             <div className="flex-1 flex flex-col items-center justify-center w-full text-center space-y-6">
                 <h2 className="text-2xl font-serif font-bold text-[var(--foreground)] mt-4">{poem.title}</h2>
                 <div className="w-full h-px bg-gradient-to-r from-transparent via-[var(--border)] to-transparent"></div>
-                <div className="flex-1 w-full flex items-center justify-center overflow-y-auto py-2">
+                <div className="flex-1 w-full flex items-center justify-center overflow-y-auto py-2 touch-pan-y">
                     <p className="text-lg whitespace-pre-wrap text-[var(--foreground)] leading-relaxed font-serif text-center">
                         {poem.content}
                     </p>
